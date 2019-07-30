@@ -322,21 +322,6 @@ println("forecast of next 5 observations: " + forecast.toArray.mkString(","))
 
 // COMMAND ----------
 
-//i want to get ARIMA for few features but i did not find how i would do it
-import org.apache.spark.ml.feature.VectorAssembler
-
-val featureassembler = new VectorAssembler().
-  setInputCols(Array("price_change","volume_change","volume")).
-  setOutputCol("features")
-
-val finalized_data = featureassembler.transform(df_).select($"features",$"appl")
-
-// COMMAND ----------
-
-finalized_data.count
-
-// COMMAND ----------
-
 //D = In an ARIMA model we transform a time series into stationary one(series without trend or seasonality) using differencing. D refers to the number of differencing transformations required by the time series to get stationary.
 
 //Stationary time series is when the mean and variance are constant over time. It is easier to predict when the series is stationary.
@@ -496,6 +481,13 @@ println(s"Explained variance = ${metrics.explainedVariance}")
 
 // COMMAND ----------
 
+var diff_GBT = 0.0
+predictions_GBT.select("appl_log","Predicted appl_log").collect().foreach(row => diff_GBT += (Math.abs(Math.exp(row.get(1).toString.toDouble) - Math.exp(row.get(0).toString.toDouble))/((Math.abs(Math.exp(row.get(0).toString.toDouble)) + Math.abs(Math.exp(row.get(1).toString.toDouble)))/2)))
+val sMAPE_GBT = diff_GBT/predictions_GBT.count*100
+println(s"Test SMAPE (percentage): ${sMAPE_GBT}")
+
+// COMMAND ----------
+
 //We'll split the set into training and test data
 val Array(trainingData, testData) = df_.randomSplit(Array(0.8, 0.2))
 val labelColumn_ = "appl"
@@ -525,6 +517,13 @@ val evaluator_GBT_ = new RegressionEvaluator()
 //We compute the error using the evaluator
 val error_ = evaluator_GBT_.evaluate(predictions_GBT_)
 println(error_)
+
+// COMMAND ----------
+
+var diff_GBT_withoutlog = 0.0
+predictions_GBT_.select("appl","Predicted appl").collect().foreach(row => diff_GBT_withoutlog += (Math.abs(row.get(1).toString.toDouble - row.get(0).toString.toDouble)/((Math.abs(row.get(0).toString.toDouble) + Math.abs(row.get(1).toString.toDouble))/2)))
+val sMAPE_GBT_ = diff_GBT_withoutlog/predictions_GBT_.count*100
+println(s"Test SMAPE (percentage): ${sMAPE_GBT_}")
 
 // COMMAND ----------
 
@@ -608,20 +607,23 @@ println(s"Explained variance = ${metrics_gr.explainedVariance}")
 
 // COMMAND ----------
 
+var diff_GBT_fit = 0.0
+prediction_gr.select("appl_log","Predicted appl_log").collect().foreach(row => diff_GBT_fit += (Math.abs(Math.exp(row.get(1).toString.toDouble) - Math.exp(row.get(0).toString.toDouble))/(Math.abs(Math.exp(row.get(0).toString.toDouble)) + Math.abs(Math.exp(row.get(1).toString.toDouble))/2)))
+val sMAPE_GBT_fit = diff_GBT_fit/prediction_gr.count*100
+println(s"Test SMAPE (percentage): ${sMAPE_GBT_fit}")
+
+// COMMAND ----------
+
+prediction_gr.count
+
+// COMMAND ----------
+
 display(prediction_gr.select("Predicted appl_log", "appl_log", "volume_log","price_change", "volume_change"))
 
 // COMMAND ----------
 
-cvModel.extractParamMap
-
-// COMMAND ----------
-
-cvModel.explainParams
-
-// COMMAND ----------
-
 val glr = new GeneralizedLinearRegression()
-   .setFamily("gaussian")
+  .setFamily("gaussian")
   .setLink("identity")
   .setMaxIter(10)
   .setRegParam(0.3)
@@ -658,30 +660,14 @@ println(s"Explained variance = ${metrics.explainedVariance}")
 
 // COMMAND ----------
 
+var diff_glr = 0.0
+predictions_glr.select("appl_log","Predicted appl_log").collect().foreach(row => diff_glr += (Math.abs(Math.exp(row.get(1).toString.toDouble) - Math.exp(row.get(0).toString.toDouble))/((Math.abs(Math.exp(row.get(0).toString.toDouble)) + Math.abs(Math.exp(row.get(1).toString.toDouble)))/2)))
+val sMAPE_glr = diff_glr/predictions_glr.count*100
+println(s"Test SMAPE (percentage): ${sMAPE_glr}")
+
+// COMMAND ----------
+
 glr.explainParams()
-
-// COMMAND ----------
-
-// Summarize the model over the training set and print out some metrics
-    val summary = model.summary
-    println(s"Coefficient Standard Errors: ${summary.coefficientStandardErrors.mkString(",")}")
-    println(s"T Values: ${summary.tValues.mkString(",")}")
-    println(s"P Values: ${summary.pValues.mkString(",")}")
-    println(s"Dispersion: ${summary.dispersion}")
-    println(s"Null Deviance: ${summary.nullDeviance}")
-    println(s"Residual Degree Of Freedom Null: ${summary.residualDegreeOfFreedomNull}")
-    println(s"Deviance: ${summary.deviance}")
-    println(s"Residual Degree Of Freedom: ${summary.residualDegreeOfFreedom}")
-    println(s"AIC: ${summary.aic}")
-    println("Deviance Residuals: ")
-    summary.residuals().show()
-    // $example off$
-
-
-// COMMAND ----------
-
-//from pyspark.sql.functions import col  # for indicating a column using a string in the line below
-//df = df.select([col(c).cast("double").alias(c) for c in df.columns])
 
 // COMMAND ----------
 
